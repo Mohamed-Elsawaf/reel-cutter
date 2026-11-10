@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">RC</span>
+        <span class="title">Reel Cutter</span>
+        <span id="version" class="ver"></span>
+      </div>
+      <div role="button" tabindex="0" id="toggleSettings" class="btn ghost small">⚙ الإعدادات</div>
+    </header>
+    <div id="updateBanner" class="banner" hidden>
+      <span id="updateText"></span>
+      <span class="spacer"></span>
+      <div role="button" tabindex="0" id="updateGet" class="btn primary small">نزّل التحديث</div>
+    </div>
+
+    <section id="settingsBox" class="card" hidden>
+      <div class="card-head"><span class="card-title">الإعدادات</span></div>
+
+      <div class="field">
+        <span class="field-label">ثواني زيادة</span>
+        <div class="inline">
+          <span class="sub">قبل</span><input type="number" id="handleBefore" min="0" max="60" step="0.5" class="input num">
+          <span class="sub">بعد</span><input type="number" id="handleAfter" min="0" max="60" step="0.5" class="input num">
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field-label">اسم الـ SEQ</span>
+        <div class="inline">
+          <input type="text" id="pattern" class="input mono pattern">
+          <span id="patternPreview" class="chip"></span>
+        </div>
+      </div>
+      <div class="hint">{company} الشركة · {video} اسم الفيديو · {nn} رقم الريل 01 · {n} رقم الريل 1</div>
+
+      <div class="field">
+        <span class="field-label">Markers</span>
+        <label class="check"><input type="checkbox" id="markers"> حط marker باسم الجملة على أول كل مقطع</label>
+      </div>
+
+      <div class="divider"></div>
+      <div class="card-head"><span class="card-title">التمبلتس</span><span class="sub">أي Sequence اسمها بيبدأ بـ TPL_</span></div>
+      <div id="tplSettings"></div>
+    </section>
+
+    <section id="pasteSection" class="card">
+      <div class="card-head"><span class="step">1</span><span class="card-title">الزق الشيت</span><span class="sub">انسخ الخلايا من Google Sheets وCtrl+V هنا</span></div>
+      <textarea id="paste" class="input mono" spellcheck="false"></textarea>
+      <div class="actions">
+        <div role="button" tabindex="0" id="analyze" class="btn primary">حلّل</div>
+        <div role="button" tabindex="0" id="clear" class="btn ghost">امسح</div>
+        <span class="spacer"></span>
+        <label class="check"><input type="checkbox" id="sortChrono"> رتّب الأوقات زمنيًا</label>
+      </div>
+      <div id="parseMsg" class="msg"></div>
+    </section>
+
+    <section id="reviewSection" class="card" hidden>
+      <div class="card-head">
+        <span class="step">2</span><span class="card-title">راجع</span>
+        <span id="summary" class="summary"></span>
+        <span class="spacer"></span>
+        <div role="button" tabindex="0" id="rescan" class="btn ghost small">↻ حدّث من المشروع</div>
+      </div>
+      <div id="reels"></div>
+    </section>
+
+    <section id="runSection" class="card" hidden>
+      <div class="card-head"><span class="step">3</span><span class="card-title">اعمل</span></div>
+      <div class="actions">
+        <div role="button" tabindex="0" id="run" class="btn primary big">اعمل الريلز</div>
+        <div role="button" tabindex="0" id="cancel" class="btn secondary" hidden>إلغاء</div>
+        <span class="spacer"></span>
+        <div role="button" tabindex="0" id="undoRun" class="btn ghost danger" hidden>امسح ريلز آخر تشغيل</div>
+      </div>
+      <div id="progress" class="msg"></div>
+      <div id="report"></div>
+    </section>
+  </div>
+  <script src="src/main.js"></script>
+</body>
+</html>

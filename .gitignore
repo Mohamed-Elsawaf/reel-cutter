@@ -1,0 +1,17 @@
+# Never published:
+# test videos
+spike_media/
+# Premiere projects, previews, auto-save, MOGRT media
+*.prproj
+Adobe Premiere Pro */
+Motion Graphics Template Media/
+# merged fonts are personal use only (font licences)
+tools/merge-font/output/
+*.ttf
+*.otf
+# builds go to GitHub Releases, not the repo
+dist/
+__pycache__/
+*.pyc
+node_modules/
+.claude/

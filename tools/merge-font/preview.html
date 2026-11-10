@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="utf-8">
+<title>Font merge preview</title>
+<style>
+  @font-face { font-family: "Merged"; src: url("output/PalestineImpact-Regular.ttf"); }
+  @font-face { font-family: "ArabicOnly"; src: url("arabic-font.ttf"); }
+  body { background: #1b1b1b; color: #eee; font-family: sans-serif; padding: 16px; }
+  .label { color: #888; font: 12px monospace; margin-top: 18px; }
+  .s { font-size: 54px; line-height: 1.5; direction: rtl; border-bottom: 1px solid #333; }
+  .m { font-family: "Merged"; }
+  .a { font-family: "ArabicOnly"; }
+  .i { font-family: Impact; }
+</style>
+</head>
+<body>
+  <div class="label">Merged font (PalestineImpact)</div>
+  <div class="s m">الـ Agent لحد Tools — 11 Labs حضراتكم ٢٠٢٦ 2026!</div>
+  <div class="s m">بيدور عليها ApiKey WAVE AV Ty, «تمام»؟ (OK)</div>
+  <div class="label">Palestine alone</div>
+  <div class="s a">الـ Agent لحد Tools — 11 Labs حضراتكم ٢٠٢٦ 2026!</div>
+  <div class="label">Impact alone</div>
+  <div class="s i" style="direction:ltr">Agent Tools 11 Labs WAVE AV Ty 2026!</div>
+</body>
+</html>
