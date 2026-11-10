@@ -39,11 +39,15 @@
 - ⚠️ للاستخدام الشخصي على أجهزتك بس، وما يتوزعش (رخص الخطوط).
 
 ## التحديثات
-البانل بيتأكد من وجود نسخة أحدث **لو** اتحط لينك `version.json` في `plugin/src/updater.js` (`UPDATE_URL`). لحد دلوقتي الفحص **مقفول** لأن مفيش repo. لما يبقى فيه GitHub repo:
-1. حط اللينك في `UPDATE_URL`.
-2. علّي رقم النسخة في `plugin/manifest.json`.
-3. شغّل `python tools/package.py --url-base https://github.com/<user>/<repo>/releases/download --notes "إيه الجديد"`.
-4. ارفع الـ `.ccx` على GitHub Release بنفس رقم النسخة (`v1.0.1`)، وارفع `version.json`.
+أحدث نسخة دايمًا هنا: **https://github.com/Mohamed-Elsawaf/reel-cutter/releases/latest**
+
+البانل بيتأكد لوحده كل ما يتفتح. لو فيه نسخة أحدث هيظهر شريط فوق، تدوس **حمّل التحديث**، وبعدين دبل كليك على الـ `.ccx` اللي نزل. الإعدادات بتفضل زي ما هي.
+
+**نشر نسخة جديدة (للمطوّر):**
+1. علّي رقم النسخة في `plugin/manifest.json`.
+2. شغّل `python tools/package.py --url-base https://github.com/Mohamed-Elsawaf/reel-cutter/releases/download --notes "إيه الجديد"`.
+3. `gh release create v<النسخة> dist/ReelCutter-<النسخة>/ReelCutter-<النسخة>.ccx dist/ReelCutter-<النسخة>.zip`
+4. اعمل commit و push لـ `version.json`، ومن ساعتها كل الأجهزة هتشوف التحديث.
 
 ## للتطوير
 - `plugin/`: كود البلاجن (UXP, JavaScript من غير build).

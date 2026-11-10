@@ -5,7 +5,7 @@
 
 // Put the raw URL of version.json here once there is a GitHub repo, e.g.
 // https://raw.githubusercontent.com/<user>/reel-cutter/main/version.json
-const UPDATE_URL = '';
+const UPDATE_URL = 'https://raw.githubusercontent.com/Mohamed-Elsawaf/reel-cutter/main/version.json';
 
 /** Compare "1.2.3" style versions. Returns 1 if a > b, -1 if a < b, 0 if equal. */
 function compareVersions(a, b) {
