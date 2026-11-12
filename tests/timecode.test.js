@@ -56,3 +56,11 @@ test('formatTime', () => {
   assert.equal(formatTime(0), '00:00');
   assert.equal(formatTime(61.5), '01:01.5');
 });
+
+test('splitRangeText', () => {
+  const { splitRangeText } = require('../plugin/src/timecode.js');
+  assert.deepEqual(splitRangeText('06:02 ل 06:56 كلام هنا'), { range: '06:02 ل 06:56', phrase: 'كلام هنا' });
+  assert.deepEqual(splitRangeText('كلام - 1:48:02 - 1:48:16'), { range: '1:48:02 - 1:48:16', phrase: 'كلام' });
+  assert.deepEqual(splitRangeText('06:02 ل 06:56'), { range: '06:02 ل 06:56', phrase: '' });
+  assert.deepEqual(splitRangeText('06:02 ل 06:56 ل 07:00'), { range: '06:02 ل 06:56 ل 07:00', phrase: '' });
+});

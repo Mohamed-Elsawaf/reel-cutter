@@ -94,3 +94,17 @@ test('dash separator rows split reels', () => {
   const text = ['1:00 ل 1:10\tx\t\ta.mp4', '---', '2:00 ل 2:10\ty\t\tb.mp4'].join('\n');
   assert.deepEqual(parseSheet(text).reels.map(r => r.videoName), ['a.mp4', 'b.mp4']);
 });
+
+test('time and phrase on one line (no phrase column) are split', () => {
+  const { reels } = parseSheet('٥:٤٥ ل ٥:٥٠ حضرتك لحد غلط\n٩:١٨ ل ٩:٤١ ال ai لحد الكورس');
+  const segs = reels[0].segments;
+  assert.equal(segs.length, 2);
+  assert.deepEqual([segs[0].rawText, segs[0].phrase, segs[0].startSec, segs[0].endSec], ['٥:٤٥ ل ٥:٥٠', 'حضرتك لحد غلط', 345, 350]);
+  assert.deepEqual([segs[1].rawText, segs[1].phrase, segs[1].startSec, segs[1].endSec], ['٩:١٨ ل ٩:٤١', 'ال ai لحد الكورس', 558, 581]);
+});
+
+test('a phrase column wins over text on the time line', () => {
+  const { reels } = parseSheet('1:00 ل 1:10\tالجملة\t\tv.mp4');
+  assert.equal(reels[0].segments[0].phrase, 'الجملة');
+  assert.equal(reels[0].segments[0].rawText, '1:00 ل 1:10');
+});

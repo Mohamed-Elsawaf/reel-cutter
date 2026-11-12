@@ -74,6 +74,28 @@ function parseRange(text) {
   return { ok: true, start, end };
 }
 
+/**
+ * Split a line that holds a range and a phrase together ("٥:٤٥ ل ٥:٥٠ حضرتك لحد غلط")
+ * into the range text and the phrase. Text after the second time (or, failing that, before the first) is the phrase.
+ * Lines without exactly two times come back unchanged with an empty phrase.
+ * @param {string} text
+ * @returns {{range:string, phrase:string}}
+ */
+function splitRangeText(text) {
+  const raw = String(text || '');
+  const src = normalizeDigits(raw); // same length as raw: every digit maps to one character
+  const tokens = [];
+  let m;
+  TIME_TOKEN.lastIndex = 0;
+  while ((m = TIME_TOKEN.exec(src)) !== null) tokens.push({ str: m[0], index: m.index });
+  if (tokens.length !== 2) return { range: raw.trim(), phrase: '' };
+  const from = tokens[0].index, to = tokens[1].index + tokens[1].str.length;
+  const tidy = (s) => s.replace(/^[\s\-–—|:،,.]+|[\s\-–—|:،,.]+$/g, '');
+  const after = tidy(raw.slice(to)), before = tidy(raw.slice(0, from));
+  if (!after && !before) return { range: raw.trim(), phrase: '' };
+  return { range: raw.slice(from, to).trim(), phrase: after || before };
+}
+
 /** True if the text contains something that looks like a time. */
 function looksLikeTime(text) {
   TIME_TOKEN.lastIndex = 0;
@@ -96,4 +118,4 @@ function formatTime(sec) {
   return (neg ? '-' : '') + body;
 }
 
-module.exports = { normalizeDigits, parseTime, parseRange, looksLikeTime, formatTime };
+module.exports = { normalizeDigits, parseTime, parseRange, splitRangeText, looksLikeTime, formatTime };

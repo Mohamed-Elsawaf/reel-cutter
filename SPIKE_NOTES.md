@@ -89,3 +89,10 @@ Raw log: spike runs 1 and 2. Run 1 = all tests, run 2 = template only. The code 
 - **Settings survive an update install** (1.0.0 → 1.0.1 over the top kept PluginData/settings.json); only an uninstall (`/remove`) wipes them.
 - Update check (`src/updater.js`) is off until `UPDATE_URL` is set; needs `launchProcess: https` for the download button (added to the manifest).
 - Don't load the dev copy in UDT while the .ccx is installed (same plugin id).
+
+## 1.0.1: sequence as source (verified 2026-11-12, user's project 9-11)
+- `trackItem.getProjectItem()` works on V1 items of a user sequence (returns a Promise-or-value; `ClipProjectItem.cast` on it works).
+- `trackItem.getInPoint()` and `ClipProjectItem.createSetInOutPointsAction` use the **same zero-based media time**, even for camera files whose Media Start is not zero (AW20260925_0812.MP4, Media Start 00:06:49:02). Sheet 05:45 in "Sequence 01" -> clip in=345 -> reel frame at 0 = sequence frame at 00:05:45:00 (checked visually).
+- Reel from a sequence: V1 + A1 items placed, markers at 0/5/52/98 for 5+47+46+23 s, source clip in/out restored to unset. Overlapping ranges (05:03-05:50 after 05:45-05:50) are fine.
+- Not yet exercised in Premiere: a sheet range that spans a cut between two V1 clips (two pieces; covered by tests/pieces.test.js only), speed-changed clips on V1, template audio on A2+ being extended.
+- A plugin installed with UPIA while Premiere is open is only picked up after restarting Premiere (closing/reopening the panel keeps the old code).

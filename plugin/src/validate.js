@@ -8,6 +8,7 @@ const LONG_SEGMENT_SEC = 180;
 /**
  * @typedef {{level:'error'|'warning', code:string, message:string}} Issue
  * @typedef {{
+ *   sourceChosen?: boolean,
  *   videoExists?: (videoName:string) => boolean,
  *   getDuration?: (videoName:string) => (number|null|undefined)
  * }} ValidateContext
@@ -23,11 +24,13 @@ function validateReel(reel, ctx) {
   // Keep warnings the parser added (like an inherited video name); recompute everything else.
   reel.issues = (reel.issues || []).filter(i => i.code === 'video-inherited');
 
-  if (!reel.videoName) reel.issues.push({ level: 'error', code: 'no-video', message: 'اسم الفيديو ناقص' });
+  // A source picked in the panel is enough; the sheet's video name is only used to find one.
+  if (c.sourceChosen) { /* ok */ }
+  else if (!reel.videoName) reel.issues.push({ level: 'error', code: 'no-video', message: 'اسم الفيديو مش في الشيت — اختار الـ SEQ من القايمة' });
   else if (c.videoExists && !c.videoExists(reel.videoName)) reel.issues.push({ level: 'error', code: 'video-missing', message: `الفيديو "${reel.videoName}" مش موجود في المشروع` });
   if (!reel.segments.length) reel.issues.push({ level: 'error', code: 'no-segments', message: 'الريل مفيهوش أوقات' });
 
-  const duration = reel.videoName && c.getDuration ? c.getDuration(reel.videoName) : null;
+  const duration = c.getDuration ? c.getDuration(reel.videoName) : null;
 
   reel.segments.forEach(seg => {
     const r = parseRange(seg.rawText);
@@ -42,16 +45,7 @@ function validateReel(reel, ctx) {
     if (seg.endSec - seg.startSec > LONG_SEGMENT_SEC) seg.issues.push({ level: 'warning', code: 'long-segment', message: `المقطع طويل (${formatTime(seg.endSec - seg.startSec)})` });
   });
 
-  // Overlaps between segments of the same reel (warning only).
-  const ok = reel.segments.map((s, i) => ({ s, i })).filter(x => !x.s.issues.some(is => is.level === 'error'));
-  for (let a = 0; a < ok.length; a++) {
-    for (let b = a + 1; b < ok.length; b++) {
-      const A = ok[a].s, B = ok[b].s;
-      if (A.startSec < B.endSec && B.startSec < A.endSec) {
-        B.issues.push({ level: 'warning', code: 'overlap', message: `متداخل مع المقطع ${ok[a].i + 1} (${A.rawText})` });
-      }
-    }
-  }
+  // Overlapping ranges are allowed on purpose (a phrase used in the hook and again later).
   return reel;
 }
 

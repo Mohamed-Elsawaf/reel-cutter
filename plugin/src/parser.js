@@ -2,7 +2,7 @@
 // Columns are recognised by their content, not their order (the sheet is RTL and the order can flip).
 'use strict';
 
-const { parseRange, looksLikeTime } = require('./timecode.js');
+const { parseRange, splitRangeText, looksLikeTime } = require('./timecode.js');
 
 const VIDEO_EXT = /^(.*?\.(?:mp4|mov|mxf|mkv|m4v|mts|avi))(?=$|[^a-z0-9])/i;
 const HEADER_WORDS = {
@@ -113,6 +113,11 @@ function newReel() {
 }
 
 function makeSegment(rawText, phrase) {
+  // No phrase of its own: the phrase may be written on the same line as the range.
+  if (!String(phrase || '').trim()) {
+    const sp = splitRangeText(rawText);
+    rawText = sp.range; phrase = sp.phrase;
+  }
   const r = parseRange(rawText);
   return { startSec: r.start, endSec: r.end, phrase: phrase || '', rawText: String(rawText).trim(), issues: r.ok ? [] : [r.error] };
 }

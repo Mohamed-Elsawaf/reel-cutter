@@ -23,7 +23,8 @@ const RLE = '‫', PDF = '‬';
 
 const state = {
   reels: [],
-  clips: [],          // from scanProject
+  clips: [],          // sources to cut from: the user's sequences, or raw clips when there are none
+  sourceKind: 'seq',  // 'seq' | 'clip'
   running: false,
   lastRun: [],        // sequences created by the last run (for the delete button)
   cancel: false,
@@ -48,8 +49,9 @@ function msg(id, text, isErr) { const m = $(id); m.textContent = text || ''; m.c
 // ---------- project ----------
 async function refreshProject() {
   const project = await P.getProject();
-  const scan = await P.scanProject(project);
-  state.clips = scan.clips;
+  const seqs = await P.scanSequences(project, { templatePrefix: S.TEMPLATE_PREFIX, reelsBin: 'REELS' });
+  if (seqs.length) { state.clips = seqs; state.sourceKind = 'seq'; }
+  else { state.clips = (await P.scanProject(project)).clips; state.sourceKind = 'clip'; }
   state.templates = (await P.listSequences(project)).map(q => q.name).filter(S.isTemplateName).sort();
   renderTemplateSettings();
   return project;
@@ -99,13 +101,19 @@ function renderTemplateSettings() {
 
 function entryById(id) { return state.clips.find(c => c.id === id) || null; }
 
-/** Pick the clip for each reel: keep the user's choice, else auto-match when exactly one clip has that name. */
+/**
+ * Pick the source for each reel: keep the user's choice, else auto-match the sheet's video name
+ * (a sequence named like it wins over one that only contains it), else the only source there is.
+ */
 async function resolveClips() {
   for (const reel of state.reels) {
     if (reel.clipId && entryById(reel.clipId)) continue;
-    const m = P.matchClips(state.clips, reel.videoName);
+    let m = P.matchClips(state.clips, reel.videoName);
+    const exact = m.filter(c => c.base === P.baseName(reel.videoName));
+    if (exact.length) m = exact;
+    if (!m.length && !reel.videoName && state.clips.length === 1) m = state.clips.slice();
     reel.clipId = m.length === 1 ? m[0].id : null;
-    reel.candidates = m.map(c => c.id);
+    reel.candidates = m.length > 1 ? m.map(c => c.id) : [];
   }
   const used = new Set(state.reels.map(r => r.clipId).filter(Boolean));
   for (const id of used) await P.clipInfo(entryById(id));
@@ -114,12 +122,13 @@ async function resolveClips() {
 function revalidate(reel) {
   const entry = reel.clipId ? entryById(reel.clipId) : null;
   validateReel(reel, {
+    sourceChosen: !!entry,
     videoExists: () => !!entry,
     getDuration: () => (entry && entry.info ? entry.info.duration : null)
   });
   if (!entry && reel.candidates && reel.candidates.length > 1) {
     const i = reel.issues.find(x => x.code === 'video-missing');
-    if (i) i.message = `فيه ${reel.candidates.length} فيديوهات بنفس الاسم "${reel.videoName}" — اختار واحد`;
+    if (i) i.message = `فيه ${reel.candidates.length} ${state.sourceKind === 'seq' ? 'SEQ فيها' : 'فيديوهات بنفس الاسم'} "${reel.videoName}" — اختار واحد`;
   }
 }
 
@@ -133,12 +142,15 @@ function renderReel(reel, index) {
   const warns = reel.issues.concat(...reel.segments.map(s => s.issues)).filter(i => i.level === 'warning').length;
   const box = el('div', { class: 'reel' + (err && !reel.skip ? ' has-error' : '') + (reel.skip ? ' skipped' : '') });
 
-  const videoSelect = el('select', { title: 'الفيديو في المشروع' });
-  const noVid = el('option', { value: '__none__', text: '— اختار الفيديو —' });
+  const isSeq = state.sourceKind === 'seq';
+  const videoSelect = el('select', { title: isSeq ? 'الـ SEQ اللي هتقص منها' : 'الفيديو في المشروع' });
+  const noVid = el('option', { value: '__none__', text: isSeq ? '— اختار الـ SEQ —' : '— اختار الفيديو —' });
   if (!reel.clipId) noVid.setAttribute('selected', 'selected');
   videoSelect.appendChild(noVid);
-  const cands = (reel.candidates && reel.candidates.length) ? reel.candidates.map(entryById) : state.clips;
-  cands.forEach(c => { const o = el('option', { value: c.id, text: c.path.replace(/^\//, '') }); if (c.id === reel.clipId) o.setAttribute('selected', 'selected'); videoSelect.appendChild(o); });
+  // Name matches first, then every other source, so a wrong auto-match can still be changed.
+  const first = (reel.candidates || []).map(entryById).filter(Boolean);
+  const cands = first.concat(state.clips.filter(c => !first.includes(c)));
+  cands.forEach(c => { const o = el('option', { value: c.id, text: isSeq ? c.name : c.path.replace(/^\//, '') }); if (c.id === reel.clipId) o.setAttribute('selected', 'selected'); videoSelect.appendChild(o); });
   videoSelect.addEventListener('change', async () => {
     reel.clipId = videoSelect.value && videoSelect.value !== '__none__' ? videoSelect.value : null;
     if (reel.clipId) await P.clipInfo(entryById(reel.clipId));
@@ -245,6 +257,7 @@ async function run() {
   const line = (text, cls) => report.appendChild(el('div', { class: 'line ' + cls, text: RLE + text + PDF }));
   let firstSeq = null;
   const built = [];
+  const leftovers = [];
   try {
     const project = await refreshProject();
     await resolveClips();
@@ -256,27 +269,37 @@ async function run() {
     for (let k = 0; k < todo.length; k++) {
       const { r, i } = todo[k];
       if (state.cancel) { line(`R${String(i + 1).padStart(2, '0')}: اتلغى`, 'skip'); continue; }
-      const name = naming.uniqueName(naming.sequenceName(state.settings.pattern, r, i + 1), existing);
+      const entry = entryById(r.clipId);
+      const forName = Object.assign({}, r, { videoName: r.videoName || (entry ? entry.name : '') });
+      const name = reelName(forName, i + 1, existing);
       const template = r.templateName ? allSeqs.find(q => q.name === r.templateName) : null;
       if (r.templateName && !template) { line(`✖ ${name}: التمبلت ${r.templateName} مش موجود`, 'fail'); continue; }
       existing.push(name);
       msg('progress', `بعمل ${k + 1} من ${todo.length}: ${name}`);
       try {
-        const out = await buildReel(project, r, entryById(r.clipId), {
+        const out = await buildReel(project, r, entry, {
           name, bin, template, markers: state.settings.markers,
           handleBefore: state.settings.handleBefore, handleAfter: state.settings.handleAfter
         });
         if (!firstSeq) firstSeq = out.seq;
-        built.push({ reel: r, seq: out.seq, entry: entryById(r.clipId) });
+        built.push({ reel: r, seq: out.seq, entry, out });
         const total = out.segments.length ? out.segments[out.segments.length - 1].end : 0;
         const tplInfo = out.layers ? ` — ${r.templateName}: مد ${out.layers.extended} لاير` + (out.layers.skipped ? ` (${out.layers.skipped} بيبدأ بعد آخر الريل)` : '') : '';
         line(`✔ ${name} — ${out.segments.length} مقطع — ${formatTime(total)}${tplInfo}`, 'ok');
       } catch (e) {
-        line(`✖ ${name}: ${e.message || e}`, 'fail');
+        // A reel that failed half-way leaves an incomplete sequence: remove it, or track it if that fails.
+        let note = '';
+        if (e && e.partialSeq) {
+          let removed = false;
+          try { removed = await project.deleteSequence(e.partialSeq); } catch (e2) { removed = false; }
+          if (removed) note = ' (الـ SEQ الناقص اتمسح)';
+          else { leftovers.push(e.partialSeq); note = ' (فضل SEQ ناقص في REELS — زرار المسح هيشيله)'; }
+        }
+        line(`✖ ${name}: ${e.message || e}${note}`, 'fail');
       }
     }
     state.reels.forEach((r, i) => { if (r.skip) line(`R${String(i + 1).padStart(2, '0')}: متخطّي`, 'skip'); else if (hasErrors(r)) line(`R${String(i + 1).padStart(2, '0')}: ما اتعملش (فيه خطأ)`, 'skip'); });
-    state.lastRun = built.map(b => b.seq);
+    state.lastRun = built.map(b => b.seq).concat(leftovers);
     try { await writeRunLog(project, built); } catch (e) { /* log is a debugging aid only */ }
     if (firstSeq) { try { await project.openSequence(firstSeq); } catch (e) { /* not critical */ } }
     msg('progress', state.cancel ? 'اتلغى' : 'خلص');
@@ -287,13 +310,30 @@ async function run() {
   }
 }
 
+/**
+ * Sequence name for a reel. When {nn}/{n} would repeat a name from an earlier run, keep counting
+ * (R01, R02 exist -> R03) instead of "R01 (2)".
+ */
+function reelName(reel, n, existing) {
+  const pat = state.settings.pattern;
+  const taken = new Set(existing.map(x => x.toLowerCase()));
+  if (/\{nn?\}/.test(pat || naming.DEFAULT_PATTERN)) {
+    for (let k = n; k < n + 500; k++) {
+      const nm = naming.sequenceName(pat, reel, k);
+      if (!taken.has(nm.toLowerCase())) return nm;
+    }
+  }
+  return naming.uniqueName(naming.sequenceName(pat, reel, n), existing);
+}
+
 /** Debug aid: dump what was built to <plugin data folder>/last_run.txt. */
 async function writeRunLog(project, built) {
   const ppro = P.ppro;
   const r3 = (t) => Math.round(t.seconds * 1000) / 1000;
   const lines = ['Reel Cutter run ' + new Date().toISOString()];
   for (const b of built) {
-    lines.push(`\n== ${b.seq.name} (video ${b.reel.videoName})`);
+    lines.push(`\n== ${b.seq.name} (video ${b.reel.videoName || '-'}, source ${b.entry.kind || 'clip'} "${b.entry.name}")`);
+    (b.out.pieces || []).forEach(p => lines.push(`  piece: ${p.name} in=${p.in} out=${p.out} -> at ${p.at}`));
     b.reel.segments.forEach((s, i) => lines.push(`  sheet ${i + 1}: ${s.rawText} -> ${s.startSec}-${s.endSec}`));
     const vc = await b.seq.getVideoTrackCount(), ac = await b.seq.getAudioTrackCount();
     for (const [k, n, g] of [['V', vc, 'getVideoTrack'], ['A', ac, 'getAudioTrack']]) {
@@ -304,7 +344,9 @@ async function writeRunLog(project, built) {
     }
     const mk = (await ppro.Markers.getMarkers(b.seq)).getMarkers() || [];
     mk.forEach(m => lines.push(`  marker @${r3(m.getStart())}: "${m.getName()}" | ${m.getComments()}`));
-    lines.push(`  source clip in/out now: ${r3(await b.entry.clip.getInPoint(ppro.Constants.MediaType.VIDEO))} / ${r3(await b.entry.clip.getOutPoint(ppro.Constants.MediaType.VIDEO))}`);
+    for (const t of (b.out.sources || [])) {
+      lines.push(`  source ${t.name} in/out before: ${t.origIn} / ${t.origOut}, now: ${r3(await t.clip.getInPoint(ppro.Constants.MediaType.VIDEO))} / ${r3(await t.clip.getOutPoint(ppro.Constants.MediaType.VIDEO))}`);
+    }
     try { lines.push('  bin: ' + (await b.seq.getProjectItem()).getParentBin().name); } catch (e) { /* */ }
   }
   const folder = await uxp.storage.localFileSystem.getDataFolder();
@@ -324,7 +366,9 @@ function fillSettings() {
 }
 
 function updatePatternPreview() {
-  const sample = state.reels[0] || { company: 'Acme', videoName: 'AW20260826_0650.mp4' };
+  const r0 = state.reels[0];
+  const e0 = r0 && r0.clipId ? entryById(r0.clipId) : null;
+  const sample = r0 ? Object.assign({}, r0, { videoName: r0.videoName || (e0 ? e0.name : '') }) : { company: 'Acme', videoName: 'AW20260826_0650.mp4' };
   $('patternPreview').textContent = '← ' + naming.sequenceName($('pattern').value, sample, 1);
 }
 

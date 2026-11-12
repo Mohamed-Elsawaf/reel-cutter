@@ -54,10 +54,61 @@ async function scanProject(project) {
 
 function baseName(name) { return String(name || '').replace(/\.[a-z0-9]{2,4}$/i, '').trim().toLowerCase(); }
 
-/** Clips whose name (without extension, case-insensitive) equals the sheet's video name. */
+/**
+ * Sources whose name (without extension, case-insensitive) equals the sheet's video name.
+ * A source sequence also matches when one of the clips on its V1 has that name.
+ */
 function matchClips(clips, videoName) {
   const b = baseName(videoName);
-  return clips.filter(c => c.base === b);
+  if (!b) return [];
+  return clips.filter(c => c.base === b || (c.clipBases && c.clipBases.includes(b)));
+}
+
+/** The clips on V1 of a sequence, in timeline order, with the times needed to map sequence time to source time. */
+async function loadSeqItems(seq) {
+  const out = [];
+  let track = null;
+  try { track = await seq.getVideoTrack(0); } catch (e) { return out; }
+  const tis = track ? (track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false) || []) : [];
+  for (const ti of tis) {
+    let pi = ti.getProjectItem();
+    if (pi && pi.then) pi = await pi;
+    if (!pi) continue;
+    let clip = null;
+    try { clip = ppro.ClipProjectItem.cast(pi); } catch (e) { clip = null; }
+    if (!clip) continue;
+    out.push({
+      start: (await ti.getStartTime()).seconds, end: (await ti.getEndTime()).seconds,
+      inPoint: (await ti.getInPoint()).seconds, item: pi, clip, id: pi.getId(), name: pi.name
+    });
+  }
+  out.sort((a, b) => a.start - b.start);
+  return out;
+}
+
+/**
+ * The user's source sequences: every sequence except templates (TPL_) and the reels this plugin built (REELS bin).
+ * Each entry looks like a clip entry (id, name, base, path, info) plus kind 'seq' and its V1 items.
+ */
+async function scanSequences(project, opts) {
+  const o = opts || {};
+  const out = [];
+  for (const seq of await project.getSequences()) {
+    const name = seq.name;
+    if (o.templatePrefix && String(name).startsWith(o.templatePrefix)) continue;
+    if (o.reelsBin) {
+      try { if ((await seq.getProjectItem()).getParentBin().name === o.reelsBin) continue; } catch (e) { /* keep it */ }
+    }
+    const items = await loadSeqItems(seq);
+    if (!items.length) continue;
+    out.push({
+      id: 'seq:' + seq.guid.toString(), kind: 'seq', name, base: baseName(name), path: '/' + name, seq, items,
+      clipBases: items.map(i => baseName(i.name)),
+      info: { duration: items[items.length - 1].end, fps: null, path: null }
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
 }
 
 /** Duration (s) and frame rate of a clip, cached on the entry. */
@@ -91,4 +142,4 @@ async function listSequences(project) {
   return await project.getSequences();
 }
 
-module.exports = { ppro, UNSET_INOUT, tx, getProject, scanProject, matchClips, clipInfo, ensureRootBin, listSequences, baseName };
+module.exports = { ppro, UNSET_INOUT, tx, getProject, scanProject, scanSequences, loadSeqItems, matchClips, clipInfo, ensureRootBin, listSequences, baseName };
